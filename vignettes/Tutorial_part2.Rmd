@@ -1,0 +1,134 @@
+%\VignetteEngine{knitr}
+%\VignetteIndexEntry{Tutorial Part II - Tissue level context analysis (Roadmap)}
+
+Tissue level context analysis using Roadmap epigenomics gene expression data
+===============================================
+In the part II of tutorial, we demonstrate how to infer the tissue-level context of the mutational constraint top subnetwork using Roadmap epigenomis gene expression dataset. The inference procedure consists of i) evaluating the likely tissue site of action (per-tissue scoring) for a group of interacting genes and ii) testing the significance of the per-tissue score against empirical null models. We also carry out a follow-up analysis to examine the independency of multiple significant tissues identified in the above procedure.    
+
+#### Getting started 
+To begin with, we load required R packages. 
+```{r, results='hide', message=FALSE, warning=FALSE}
+library(igraph)
+library(BioNet)
+library(PINTS)
+```
+
+As a prerequiste of this tutorial, we build the mutational-constraint specific InWeb PPI network using the PINTS::buildDiseaseNetwork() function as shown in the part I of the tutorial. This is needed for generating the mutational constraint top subnetwork and null top subnetworks which will be used in the follwoing tissue-level context analysis.  
+```{r, results='hide'}
+#load PPI network
+PPINetPath <- system.file("extdata", "InWeb3_HC_PPI_comp0.net", package="PINTS")
+PPIAnnotPath <- system.file("extdata", "InWeb3_HC_PPI_comp0_geneAnnotation.txt", package="PINTS")
+PPI <- loadPPINetwork(PPINetPath, PPIAnnotPath)
+network <- PPI$g
+nodeAnnot <- PPI$nodeAnnot
+
+#load gene scores and get the list of genes with expression information (binary preferential expression).
+geneScorePath <- system.file("extdata", "InWeb3_HC_PPI_Evolution_pvals.txt", package="PINTS")
+geneExpressionPath <- system.file("extdata", "Binary_Pref_Gene_Exp_Roadmap.txt", package="PINTS")
+nodeWeightTable <- read.table(geneScorePath, head=T, stringsAsFactors=F)
+gExpData <- read.table(geneExpressionPath, head=T, stringsAsFactors=F) 
+genes <- gExpData[,"Ensemble"]
+
+#Build mutational constraint gene network. 
+diseaseNetwork <- buildDiseaseNetwork(network, nodeWeightTable, nodeAnnot, nodeNameBy ="Ensemble", nodeSelected=genes)
+```
+
+The list of mutational constraint top subnetwork and null top subnetworks can be read from a precompiled result included in the package. 
+```{r}
+topSubnetPath <- system.file("extdata", "DiseaseSubnetworks_expressed_100perms.txt", package="PINTS")
+detectedSubnet = file(topSubnetPath, open="r")
+lines = readLines(detectedSubnet)
+detectedNodesList  <- (strsplit(lines, " "))
+close(detectedSubnet)
+```
+The first element of the list (detectedNodesList[[1]]) shows the list of genes in the mutational top subnetwork. The rest of the list (detectedNodesList[[2:]]) the list of genes in the null top subnetworks.
+
+
+#### 1. Tissue specificity scoring and the signficant test.  
+To infer the tissue-level context of the top subnetwork, we developed a per-tissue scoring scheme which is designed to evaluate the likely tissue site of action for a group of interacting genes. To do so, we first evalute per-gene preferential expression using [Roadmap Epigenomics project][2] gene expression data based on the [gene-enrichment profiler][1] method. We then score for each tissue the probability of joint presence of tissue preferential protein interactions using a Markov network model. This procedure is followed by testing the significance of per-tissue score against empirical null models. There are two different null models used for the significance test: i) using a null top subnetwork ii) randomizing the binary preferential expression. (Further details on gene expression data processing and per-tissue scoring can be found on our paper.)   
+
+The PINTS::testSigTissueSpecificity() implements the afore-mentioned procedures to yield tissue specifiity scores and their significance across all the tissues considered for the mutational constraint top subnetwork given the prepocessed preferential gene expression data. The null model can be specified as an input parameter: i.e., i) permuteOption = "nullTopsubnet" for the first null model and ii) permuteOption = "randGeneExpression" for the second null model.     
+
+This portion of analysis requires MATLAB and UGM ([Undirected Graphical Model][3]) software. The following code snippet shows an example of how to carry out tissue specificity analysis given the top subnetwork and binary per-tissue preferential expression of genes.     
+```{r, eval=FALSE}
+
+#Set the random number seed for reproducible results
+set.seed(1234)  
+
+#Specify the UGM software and Matlab software path
+UGMPath <- file.path(".","UGM/") #Specify 
+MatlabPath <- "/usr/local/cluster/software/matlab-2014a/bin" #Specify a Matlab path. This is where a MATLAB lives on the Louise cluster (Yale HPC).
+
+#Get the processed binary tissue preferential expresssion for genes. 
+geneExpression <- gExpData
+
+#Get the list of top subnetwork.
+topSubnets <- detectedNodesList
+
+#Set the number of null samples.  
+nNull <- 1000 
+
+#Decide empirical null model to use
+Option <- "Op1" #Op1 stands for tissue speicificity test against emprical null model 1: null top subnetwork
+#Optioin <- "Op2" #Op2 stands for tissue speicificity test against emprical null model 2: randomized tissue specificity  
+if (Option == "Op1"){
+        resultTS <- testSigTissueSpecificity(diseaseNetwork, geneExpression, topSubnets, nNull, permuteOption = "nullTopsubnet", algorithmOption=UGMPath, MATLABPATH=MatlabPath)
+}else if (Option == "Op2"){
+        resultTS <- testSigTissueSpecificity(diseaseNetwork, geneExpression, topSubnets[[1]], nNull, permuteOption = "randGeneExpression", algorithmOption=UGMPath, MATLABPATH=MatlabPath)
+}
+
+#Show the tissue specificity analysis results
+#The per-tissue score (joint probability distribution): 1st row for the top subnetwork and 2nd to the rest row for the null top subnetwork 
+jointPDF <- resultTS[[1]]
+print(jointPDF) 
+
+#The tissue-specificity p values for all the tissues in the Roadmap dataset.
+jointPDFSig <- resultTS[[2]]
+print(jointPDFSig[1,])  
+```
+
+We show the significant tissues from the precompied results: It shows the list of significant tissues such as CD34, fetal brain (labelled by "fBrain"), CD8, fetal thymus ("fThymus")  and p-values against two empirical null models ("Op1.pval" and "Op2.pval"). 
+```{r, eval=TRUE}
+#Read the precompiled tissue specificity analysis results using Roadmap epigenomics gene expression dataset.
+sigTissuePath1 <-  system.file("extdata", "MC_Roadmap_Op1_SigTissues.txt", package="PINTS")
+sigTissuePath2 <- system.file("extdata", "MC_Roadmap_Op2_SigTissues.txt", package="PINTS")
+
+#Show all significant tissues achiving nominal significance (p < 0.05) 
+df1 <- read.table(sigTissuePath1, head=F, stringsAsFactors=F) 
+colnames(df1) <- c("cell", "Op1.pval")
+df2 <- read.table(sigTissuePath2, head=F, stringsAsFactors=F)
+colnames(df2) <- c("cell", "Op2.pval")
+df3 <- merge(df1, df2, by="cell")
+sigThres <- 0.05 #Nominal significance 
+df3 <- subset(df3, df3$Op2.pval < sigThres &  df3$Op1.pval < sigThres )
+df3 <- df3[order(df3$Op1.pval, df3$Op2.pval),]
+print(df3)  
+```
+
+We can also visualize the active subset of the mutational constraint top network in all the significant tissues. In the plot, the active subset is shwon as black and grey nodes connected by solid edge lines. The black circled/sauared nodes represent the tissue preferentially expressed signal/null genes respectively. The grey nodes represents the connector genes that are in the shortest path distance among all the tissue preferentially expressed genes.      
+```{r, eval=TRUE}
+#Get the processed binary tissue preferential expresssion for genes. 
+geneExpression <- gExpData
+
+#Get the significant tissues
+targetCells <- df3$cell 
+
+#Get the top subnetworks. 
+topSubnets <- detectedNodesList
+
+#plot the active subcomponents
+plotTissueActivity(diseaseNetwork, geneExpression, targetCells, topSubnets[[1]])
+```
+
+#### 2. The independency of multiple significant tissues
+We can test the independency of the multiple significant tissues such as CD34, fetal brain (labelled by "fBrain"), CD8, fetal thymus ("fThymus") considering the pairwise overlp of tissue preferssionally-expressed genes in each tissue. The PINTS::testSigTissueOverlap() reports the number of the preferentially expressed genes in each tissue ("n1" and "n2"), the overlapping preferentially expressed genes between the pair of tissues ("nc"), and the p-value of hypergeometric test across all pairs of significant tissues. 
+
+```{r, eval=TRUE}
+result <- testSigTissueOverlap(diseaseNetwork, geneExpression, targetCells, topSubnets[[1]])
+print(result$TSOverlap)
+#print(result$TSConOverlap)
+```
+
+[1]: http://xavierlab2.mgh.harvard.edu/EnrichmentProfiler/
+[2]: http://www.roadmapepigenomics.org/
+[3]: http://www.di.ens.fr/~mschmidt/Software/UGM.html.

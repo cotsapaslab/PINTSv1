@@ -1,0 +1,110 @@
+%\VignetteEngine{knitr}
+%\VignetteIndexEntry{Tutorial : Introduction to the package}
+
+Introduction to PINTS (Protein Interaction Network Tissue Search) package
+========================================================
+
+#### Description of the package
+
+The *PINTS* package is designed to provide a framework to identify a group of interacting genes under mutational constraint and equivalently, a group of interacting genes associated with diseases/traits (e.g., trait-associated subnetwork from genome wide association study) and to infer the biological context represented by the group of genes, e.g., likely tissue of action. These can help to gain an insight about the molecular mechanism associated with mutational constraint and complex diseases/traits. Throughout the vignettes, we demonstrate the *PINTS* workflow using the mutational constraint gene study ([Samocha et al][1]). 
+
+The workflow consists three key components: 
+
+Step1: Projection of mutational constraint/association scores onto a protein-protein interaction network   
+    We assign a weight (constraint score) to each node (protein/gene) of protein-protein interaction (PPI) network such that the resulting network represents global mutational constraint score distribution on a PPI network. In this work, we use InWeb ([Lage et al][1]) dataset for a PPI network. 
+
+Step 2: Mutational constraint gene network search   
+  To identify a group of interacting genes under mutational constraint, we look for a local network neighborhood maximally enriched with mutational constraint scores using a computational algorithm (Prize-collecting Steiner Tree algorithm implemented in *BioNet* R package).
+
+Step 3:  Hypothesis test and analysis    
+    We test the significance of clustering of mutational constraint signals in the maximally-scoring subnework (top subnetwork) against emphirical null expectation (null top subnetworks). We then infer the biological context: e.g., we examine the likely tissue of action of the interacting group of genes in the top subnetwork using gene expression datasets (e.g., Roadmap epigenomics gene expxpression and BrainSpan gene expression data). We also examine the relevant phenotype using Online Mendelian Inheritance in Men (OMIM) and disease classification based on Medical Subject Headings (MeSH). 
+  
+Throughout the workflow, we restrict the subnetwork search to the subspace of PPI defined by genes identified to have transcript-level after the preprocessing of Roadmap epigenomics dataset by removing the rest of genes from the InWeb PPI network. For all the genes in the resulting network, we computed per-tissue preferential expression scores to identify which tissues they are specific to.  
+  
+
+#### Installation 
+
+You can install the PINTS package from the source in a R session.  
+```{r, eval=FALSE}
+        install.packages("/path/to/package/PINTSv0.1.tar.gz", repos=NULL, type="source")
+```       
+
+In addition to this, you would need to install all package dependencies. They are downloadble frm CRAN  (http://cran.r-project.org) and Bioconductor (http://www.bioconductor.org) project website. The following are the necessary packages. 
+```{r, eval=FALSE}
+        #Installing from CRAN
+        install.packages("igraph")
+
+        #installing from Bioconductor.org
+        source("http://bioconductor.org/biocLite.R")
+        biocLite("BioNet")
+        biocLite("RBGL")  
+        biocLite("graph")  
+        biocLite("Matching")
+```
+   
+For the tissue-level context search in the step 3 of the *PINTS* workflow, you also need to have a UGM software running under MATLAB. The UGM software is available from http://www.di.ens.fr/~mschmidt/Software/UGM.html. We provide a set of Matlab scripts used for *PINTS* workflow separately (Unzip UGM_2011_CotsapsAdd.zip) Where to post?.     
+
+
+The tutorials
+--------------------------
+A series of tutorials is intended to demonstrate the *PINTS* workflow to identify the mutational constraint gene subnetwork and to analyize the biological context (tissue specificity) of the identified disease-associated subnetwork. 
+
+You can check out the tutorials in a R session. 
+```{r, eval=FALSE}
+  browseVignettes("PINTS")
+```
+
+The tutorial consists of 3 parts:  
+    Part I - Mutational constraint subnetwork search  
+    Part II - Tissue level context analysis (Roadmap)  
+    Part III - Tissue level context analysis (BrainSpan) and OMIM/Disease class enrichment analysis  
+
+The following are the the processeed datasets used in the tutorial. They are included in the package.
+
+##### Datasets 
+1. Mutationally constrained (MC) gene dataset: [Samocha et al][1] 
+```{r, results='hide', eval=FALSE}
+    system.file("extdata", "InWeb3_HC_PPI_Evolution_pvals.txt", package="PINTS")
+```
+
+2. Protein-Protein interaction dataset (InWeb3): [K. Lage et al][2]
+```{r, results='hide', eval=FALSE}
+    system.file("extdata", "InWeb3_HC_PPI_comp0.net", package="PINTS")
+    system.file("extdata", "InWeb3_HC_PPI_comp0_geneAnnotation.txt", package="PINTS")
+```
+
+3. Expression data sets    
+    a. Roadmap: [Roadmap Epigenomics project][3]      
+    b. BrainSpan: [BrainSpan][4]    
+
+```{r, results='hide', eval=FALSE}
+  #Roadmap epigenomics project
+  system.file("extdata", "Binary_Pref_Gene_Exp_Roadmap.txt", package="PINTS")
+  system.file("extdata", "Pref_Gene_Exp_Roadmap.txt", package="PINTS")
+  
+  #BrainSpan 
+  system.file("extdata", "BrainSpan-Binary-Pref-Expr-Ens-Roadmpap.txt", package="PINTS")
+  system.file("extdata", "BrainSpan-Pref-Expr-Ens-Roadmpap-Subset.txt", package="PINTS")
+```
+
+4. Disease classification data sets    
+    a. OMIM:  [OMIM][5]    
+    b. CTD:   [CTD][6] 
+```{r, results='hide', eval=FALSE}
+    #OMIM and Disease class (MeSH) enrichment
+    system.file("extdata", "geneOMIMmap_Roadmap.txt", package="PINTS")
+    system.file("extdata", "gene_Diseasclass.txt", package="PINTS")
+```
+
+
+Acknowledgement
+--------------------------
+We thank all the members of Cotsapas Lab for the develpoment of the project, Samocha et al.([Samocha et al][1]) for providing the mutationally-constrained gene dataset, Lage et al. ([Lage et al][2]) for the InWeb PPI network dataset. We also thank the whole research community for making the useful datasets available. We thank Yale HPC for the computational resources and technical help.     
+
+[1]: http://www.nature.com/ng/journal/vaop/ncurrent/full/ng.3050.html
+[2]: http://www.nature.com/nbt/journal/v25/n3/full/nbt1295.html
+[3]: http://www.roadmapepigenomics.org/
+[4]: http://www.brainspan.org/
+[5]: http://omim.org/
+[6]: http://ctdbase.org/
+

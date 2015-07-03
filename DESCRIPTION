@@ -1,0 +1,22 @@
+Package: PINTS
+Type: Package
+Title: Protein interaction network tissue search (PINTS)
+Version: 0.1
+Date: 2015-01-31
+Author: Cotsapas Lab (Mutational constraint gene project group)
+Maintainer: Jinmyung Choi <jinmyung@gmail.com>
+Description: Disease/Phenotype-associated subnetwork seaerch and the biological
+    context analysis workflow
+Depends:
+    R (>= 3.0.1)
+Imports:
+    BioNet,
+    igraph,
+    Matching,
+    biomaRt
+Suggests:
+    knitr,
+    ggplot2
+VignetteBuilder: knitr
+License: GPL (>= 2)
+LazyData: true

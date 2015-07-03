@@ -1,0 +1,124 @@
+%\VignetteEngine{knitr}
+%\VignetteIndexEntry{Tutorial Part I - Mutational constraint (Phenotype/Disease-associated) subnetwork search}
+
+Part I - Mutational constraint (Phenotype/Disease-associated) subnetwork search 
+========================================================
+In the part I of tutorial, we show how to build the mutational constraint weighted PPI network reflecting the landscape of mutational constraint scores across the PPI network. We then show how to identify a group of interacting genes under mutational constraint.   
+
+The tutorial consists of 3 parts:  
+    1. Build mutational constraint specific (disease/phenotype-specific) protein-protein interaction (PPI) network   
+    2. Identify the mutational constraint (disease/phenotype-associated) subnetwork   
+    3. Test the significance of the clustering of mutational constraint signals on PPI network  
+
+#### Getting started 
+
+To begin with, we load required R packages:
+```{r, results='hide', message=FALSE, warning=FALSE}
+library(igraph)
+library(BioNet)
+library(PINTS)
+```
+
+#### 1. Build mutational constraint (disease/phenotype-specific) protein-protein interaction network
+
+###### Create InWeb PPI network object with node annotation (Ensemble, HUGO+ etc.)
+We create an instance of PPI network using PINTS::loadPPINetwork() function. In this tutorial, we use InWeb3 dataset ([K. Lage et al][1]) for the PPI network which is included in the package. The InWeb3 PPI dataset consists of a *pajek* format graph file and a network node annotation file that provides "Ensemble" and "HUGO" symbols for all the nodes. We use "Ensemble" gene symbol as the default node name. The PINTS::loadPPINetwork() returns a list consisting of a graph object (*igraph* R package) and node annotation data frame. 
+
+```{r, results='hide'}
+#InWeb PPI network file (pajek format graph file)
+PPINetPath <- system.file("extdata", "InWeb3_HC_PPI_comp0.net", package="PINTS")
+#InWeb PPI gene annotation file 
+PPIAnnotPath <- system.file("extdata", "InWeb3_HC_PPI_comp0_geneAnnotation.txt", package="PINTS")
+#Create a graph instance of InWeb PPI network using .  
+PPI <- loadPPINetwork(PPINetPath, PPIAnnotPath)
+#PINTS::loadPPINetwork() returns a list consisting of a graph object (*igraph* R package) and node annotation data frame. 
+network <- PPI$g 
+nodeAnnot <- PPI$nodeAnnot
+```
+
+##### Build mutational constraint specific PPI network 
+After creating the InWeb PPI network object, we build a mutational constraint specific InWeb PPI network using the PINTS::buildDiseaseNetwork() function. We weight each node (protein/gene) of InWeb PPI network using mutational constrait (MC) gene scores ([Katlin et al][2]) such that the resulting network reflects the global distribution of the mutational constraint across the InWeb PPI network. We then reduce PPI network space to include only those genes that are identified to be expressed in gene expression dataset. The mutational constrait gene scores and gene expression dataset ([Roadmap epigenomics][3]) are included in the package. The PINTS::buildDiseaseNetwork() returns a weighted graph object of the reduced InWeb PPI network. 
+```{r, results='hide'}
+#Read mutational constrant scores 
+#geneScorePath <- system.file("extdata", "InWeb3_HC_PPI_Evolution_pvals.txt", package="PINTS")
+geneScorePath <- file.path("/Users/jchoi/Research/CotsapasLab/FASim", "InWeb3_HC_PPI_FA.pval")
+nodeWeightTable <- read.table(geneScorePath, head=T, stringsAsFactors=F)
+
+#Read Roadmap epigenomics gene expression dataset 
+geneExpressionPath <- system.file("extdata", "Binary_Pref_Gene_Exp_Roadmap.txt", package="PINTS")
+gExpData <- read.table(geneExpressionPath, head=T, stringsAsFactors=F)
+
+#Gene (transcript) names identified to be expressed in Roadmap expression data.
+genes <- gExpData[,"Ensemble"] 
+
+#Create a weighted graph object assigning mutaional constraint scores to each node of PPI network and reduce the graph object using expressed gene names. 
+diseaseNetwork <- buildDiseaseNetwork(network, nodeWeightTable, nodeAnnot, nodeNameBy ="Ensemble", nodeSelected=genes)
+```
+
+#### 2. Infer the mutational constrant (disease/phenotype-associated) subnetwork
+To infer a group of interacting genes under mutational constraint, we look for a local network neighborhood maximally enriched with mutational constraint scores using the Prize-collecting Steiner tree algorithm implemented in [BioNet package][4] (see also [Dittrich et al's approach][5]). We call this as a "top subnetwork". We also generate emprical null expectation for the top subnetwork by repeately using the same algorithm with the random permutaions of mutational constrant scores across the PPI network. The PINTS::randDiseaseNetwork() function generate the null permuted instances of mutational constraint weighted InWeb PPI networks. 
+```{r, eval=TRUE}
+
+#Generate the null permuted instances of mutational constraint weighted InWeb PPI networks (nPermute specify the number of permuted instances.)  
+set.seed(1234)
+nNull <- 100 #the number of null top subnetwork  
+nullDiseaseNetwork <- randDiseaseNetwork(diseaseNetwork, nPermute=nNull)
+print(nullDiseaseNetwork[1:10,1:12]) #Show how the null permuted instances looks like 
+```
+For the null permuted instances, we permuted the network identifier number for each node resulting in randomizing the mutaional constraint scores across the PPI network. Each column labled as "null1", "null2", and ect. indicates each permuted instances.    
+
+The PINTS::runDiseaseSubnetSearch() returns a list of the top subnetwork genes. The first row correpsonds to the mutational constraint top subnetwork genes and the rest rows null top subnetwork genes.
+```{r, eval=FALSE}
+#Subnetwork search run
+result <- runDiseaseSubnetSearch(diseaseNetwork, nodeAnnot, sigThres=5e-6, nullDiseaseNetwork, showResult=TRUE)
+subnetNodes <- result[[1]] #A list of the top scoring subnetworks. 
+```
+
+We can give a visual check on mutational constraint top subnetwork genes. Here, we use HUGO gene symbols instead of Ensemble names to help the recognition.  
+```{r, eval=FALSE}
+#Show the plot of the detected subnetwork using HUGO symbols
+subnetNodesHUGO <- nodeAnnot[ which(nodeAnnot[,"Ensemble"] %in% subnetNodes), "HUGO"]
+topSubnet <- induced.subgraph(diseaseNetwork, subnetNodes)
+is.connected(topSubnet)
+topSubnet.layout <- layout.fruchterman.reingold(topSubnet)
+plot(topSubnet, layout = topSubnet.layout, main= "The MC-associated subnetwork", vertex.color="skyblue", vertex.size= 10, vertex.label=subnetNodesHUGO, vertex.label.font=3, vertex.label.cex=0.5, edge.width=2)
+```
+
+#### 3. Test the significance of the clustering of constraint signals on PPI network 
+We test the  significance of the clustering of  constraint signals (the identified top subnetwork in the previous step) against a empircal null model: the top subnetworks obtained from randomized association test. Here, we used the precompiled results 100 null topsubnetworks for the significance test.
+```{r}
+#Read the precompiled 100 permutated null disease-sepcific InWeb PPI network.
+nullNetworkPath <- system.file("extdata", "nullDiseaseNetwork_expressed_100perms.txt", package="PINTS")
+nullDiseaseNetwork <- read.table(nullNetworkPath, head=TRUE, stringsAsFactors=F )
+
+#Read the detected top subnetworks .
+topSubnetPath <- system.file("extdata", "DiseaseSubnetworks_expressed_100perms.txt", package="PINTS")
+detectedSubnet = file(topSubnetPath, open="r")
+lines = readLines(detectedSubnet)
+detectedNodesList  <- (strsplit(lines, " "))
+close(detectedSubnet)
+
+#Test the signficance
+sigThres <- 5e-6
+nNull <- 100 # the number of null top subnetwork. 
+result <- testSigClustering(diseaseNetwork, nodeAnnot, detectedNodesList, nullDiseaseNetwork, nNull, sigThres)
+measures <- result[[1]]
+measuresSig <- result[[2]]
+print(measures[1:10,]) #Show the first 10 rows of results: 1st row (real topsubnetwork) vs 2nd row and below (null topsubnetwork) 
+print(measuresSig[,1]) #Show the significance of clusetering of the association signals in terms of 4 different network measures such as i) the number of nodes, ii) the number of edges, iii) the  clustering coefficient iv) the sum of association scores. The mean of the degrees of the top subnetwork shows that the nodes are not particullarly enriched with high-degree nodes.
+#Show a boxplot of the measures for a visual check
+#library(reshape)
+#library(ggplot2)
+#meltData <- melt(measures)
+#colnames(meltData) <- c("measures", "values")
+#ggplot(meltData, aes(measures, values)) + stat_boxplot(geom ='errorbar') + geom_boxplot()
+```
+
+[1]: http://www.nature.com/nbt/journal/v25/n3/full/nbt1295.html
+[2]: http://www.nature.com/ng/journal/vaop/ncurrent/full/ng.3050.html
+[3]: http://www.roadmapepigenomics.org/
+[4]: http://bioinformatics.oxfordjournals.org/content/24/13/i223.long
+[5]: http://www.bioconductor.org/packages/release/bioc/html/BioNet.html
+
+
+

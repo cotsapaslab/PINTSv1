@@ -1,0 +1,170 @@
+%\VignetteEngine{knitr}
+%\VignetteIndexEntry{Tutorial Part III - Tissue level context analysis (BrainSpan)}
+
+Tissue level context analysis using Roadmap epigenomics gene expression data
+===============================================
+In the part III of tutorial, we demonstate how to infer the tissue-level context of the mutational constraint top subnetwork using BrainSpan gene expression dataset. Here we seek for more extensive tissue-context within the brain tissues based on the same methodology used in the part II of tutorial. Therefore, the major part of the tutorial consists of the repetition of part II. At the end, we show how to examine the phenotype-context using Online Mendelian Inheritance in Man (OMIM) and Medical Subject Headings (MeSH) disease categories.   
+
+
+#### Getting started 
+To begin with, we load required R packages. 
+```{r, results='hide', message=FALSE, warning=FALSE}
+library(igraph)
+library(BioNet)
+library(PINTS)
+```
+
+As a prerequiste of this tutorial, we build the mutational-constraint specific InWeb PPI network using the PINTS::buildDiseaseNetwork() function as shown in the part I of the tutorial. This is needed for generating the mutational constraint top subnetwork and null top subnetworks which will be used in the follwoing tissue-level context analysis.  
+```{r, results='hide'}
+#load PPI network
+PPINetPath <- system.file("extdata", "InWeb3_HC_PPI_comp0.net", package="PINTS")
+PPIAnnotPath <- system.file("extdata", "InWeb3_HC_PPI_comp0_geneAnnotation.txt", package="PINTS")
+PPI <- loadPPINetwork(PPINetPath, PPIAnnotPath)
+network <- PPI$g
+nodeAnnot <- PPI$nodeAnnot
+
+#load gene scores and get the list of genes with expression information (binary preferential expression).
+geneScorePath <- system.file("extdata", "InWeb3_HC_PPI_Evolution_pvals.txt", package="PINTS")
+geneExpressionPath <- system.file("extdata", "Binary_Pref_Gene_Exp_Roadmap.txt", package="PINTS")
+nodeWeightTable <- read.table(geneScorePath, head=T, stringsAsFactors=F)
+gExpData <- read.table(geneExpressionPath, head=T, stringsAsFactors=F) 
+genes <- gExpData[,"Ensemble"]
+
+#Build mutational constraint gene network. 
+diseaseNetwork <- buildDiseaseNetwork(network, nodeWeightTable, nodeAnnot, nodeNameBy ="Ensemble", nodeSelected=genes)
+```
+
+The list of mutational constraint top subnetwork and null top subnetworks can be read from a precompiled result included in the package. 
+```{r}
+topSubnetPath <- system.file("extdata", "DiseaseSubnetworks_expressed_100perms.txt", package="PINTS")
+detectedSubnet = file(topSubnetPath, open="r")
+lines = readLines(detectedSubnet)
+detectedNodesList  <- (strsplit(lines, " "))
+close(detectedSubnet)
+```
+The first element of the list (detectedNodesList[[1]]) shows the list of genes in the mutational top subnetwork. The rest of the list (detectedNodesList[[2:]]) the list of genes in the null top subnetworks.
+
+#### 1. Tissue specificity scoring and the signficant test using BrainSpan gene expression dataset. 
+We repeat the issue specificity scoring and the signficant test presented in the part II of tutorial using BrainSpan gene expression dataset. For this, we need to load the prepocessed binaray preferential gene expression for BrainSpan dataset that is attached in the package.    
+
+```{r, eval=FALSE}
+
+#Set the random number seed for reproducible results
+set.seed(1234)  
+
+#Specify the UGM software and Matlab software path
+UGMPath <- file.path(".","UGM/") #Specify 
+MatlabPath <- "/usr/local/cluster/software/matlab-2014a/bin" #Specify a Matlab path. This is where a MATLAB lives on the Louise cluster (Yale HPC).
+
+#Get the processed binary tissue preferential expresssion for genes (BrainSpan)
+geneExpressionPath2 <- system.file("extdata", "BrainSpan-Binary-Pref-Expr-Ens-Roadmpap.txt", package="PINTS")
+gExpData2 <- read.table(geneExpressionPath2, head=T, stringsAsFactors=F)
+geneExpression <- gExpData2
+
+#Get the list of top subnetwork.
+topSubnets <- detectedNodesList
+
+#Set the number of null samples.  
+nNull <- 1000 
+
+#Decide empirical null model to use
+Option <- "Op1" #Op1 stands for tissue speicificity test against emprical null model 1: null top subnetwork
+#Optioin <- "Op2" #Op2 stands for tissue speicificity test against emprical null model 2: randomized tissue specificity  
+if (Option == "Op1"){
+        resultTS <- testSigTissueSpecificity(diseaseNetwork, geneExpression, topSubnets, nNull, permuteOption = "nullTopsubnet", algorithmOption=UGMPath, MATLABPATH=MatlabPath)
+}else if (Option == "Op2"){
+        resultTS <- testSigTissueSpecificity(diseaseNetwork, geneExpression, topSubnets[[1]], nNull, permuteOption = "randGeneExpression", algorithmOption=UGMPath, MATLABPATH=MatlabPath)
+}
+
+#Show the tissue specificity analysis results
+#The per-tissue score (joint probability distribution): 1st row for the top subnetwork and 2nd to the rest row for the null top subnetwork 
+jointPDF <- resultTS[[1]]
+print(jointPDF) 
+
+#The tissue-specificity p values for all the tissues in the Roadmap dataset.
+jointPDFSig <- resultTS[[2]]
+print(jointPDFSig[1,])  
+```
+
+We show the significant tissues from the precompied results: We show the significant tissues from the precompied results: It shows the list of significant tissues labelled by brain regions and developmental stages and p-values against two empirical null models ("Op1.pval" and "Op2.pval").
+```{r, eval=TRUE}
+resultPath <- "/Users/jchoi/Research/ChrisLab/NetworkProject/Result"
+sigTissuePath1 <-  system.file("extdata", "MC_BrainSpan_Op1_SigTissues.txt", package="PINTS")
+sigTissuePath2 <- system.file("extdata", "MC_BrainSpan_Op2_SigTissues.txt", package="PINTS")
+
+#sigTissuePath1 <- file.path(resultPath, "BrainSpan", "MC_BrainSpan_Op1_SigTissues.txt")
+#sigTissuePath2 <- file.path(resultPath, "BrainSpan", "MC_BrainSpan_Op2_SigTissues.txt")
+#Present the precompiled results.
+df1 <- read.table(sigTissuePath1, head=F, stringsAsFactors=F) 
+colnames(df1) <- c("cell", "Op1.pval")
+df2 <- read.table(sigTissuePath2, head=F, stringsAsFactors=F)
+colnames(df2) <- c("cell", "Op2.pval")
+df3 <- merge(df1, df2, by="cell")
+sigThres <- 0.05
+df3 <- subset(df3, df3$Op2.pval < sigThres &  df3$Op1.pval < sigThres )
+df3 <- df3[order(df3$Op1.pval, df3$Op2.pval),]
+print(df3)
+```
+
+We then sorted the significance of all the examained tissues by developmental stages.  
+```{r, eval=TRUE}
+#Present the signficiance by develpmental stage
+SPLIT <- strsplit(df2$cell, "_")
+df2$cell <- sapply(SPLIT, "[", 2)
+SPLIT <- strsplit(df1$cell, "_")
+df1$cell <- sapply(SPLIT, "[", 2)
+setLevels <-c("2A","2B","3A","3B", "4", "5", "6", "7", "8", "9", "10", "11")
+df2$cell <- factor(df2$cell, levels = setLevels)
+
+#Plot the significance by developmental stage
+library(ggplot2)
+#ggplot(df2, aes(cell, -log10(Op2.pval), fill=cell, dodge=cell)) + stat_boxplot(geom ='errorbar') + geom_boxplot() #colored version
+ggplot(df2, aes(cell, -log10(Op2.pval))) + stat_boxplot(geom ='errorbar') + geom_boxplot()
+
+df1$cell <- factor(df1$cell, levels = setLevels)
+#ggplot(df1, aes(cell, -log10(Op1.pval), fill=cell, dodge=cell)) + stat_boxplot(geom ='errorbar') + geom_boxplot()
+ggplot(df1, aes(cell, -log10(Op1.pval), dodge=cell)) + stat_boxplot(geom ='errorbar') + geom_boxplot()
+```
+
+We can also visualize the active subset of the mutational constraint top network in all the significant tissues. In the plot, the active subset is shwon as black and grey nodes connected by solid edge lines. The black circled/sauared nodes represent the tissue preferentially expressed signal/null genes respectively. The grey nodes represents the connector genes that are in the shortest path distance among all the tissue preferentially expressed genes. 
+```{r, eval=FALSE}
+
+
+#geneExpression <- gExpData2
+targetCells <- df3$cell[1:4]
+topSubnets <- detectedNodesList
+plotTissueActivity(diseaseNetwork, geneExpression, targetCells, topSubnets[[1]])
+```
+
+#### 2. The independency of multiple significant tissues
+We can test the independency of the multiple significant tissues such considering the pairwise overlp of tissue preferssionally-expressed genes in each tissue. The PINTS::testSigTissueOverlap() reports the number of the preferentially expressed genes in each tissue ("n1" and "n2"), the overlapping preferentially expressed genes between the pair of tissues ("nc"), and the p-value of hypergeometric test across all pairs of significant tissues. 
+```{r, eval=FALSE}
+result <- testSigTissueOverlap(diseaseNetwork, geneExpression, targetCells, topSubnets[[1]])
+print(result$TSOverlap)
+#print(result$TSConOverlap)
+```
+ 
+#### 3. Online Mendelian Inheritance in Man (OMIM) and Medical Subject Headings (MeSH) disease categories enrichment analysis
+To test OMIM record enrichment of genes in the top subnetwork, we used Fisher’s exact test comparing the proportion of genes that have OMIM entries with those that do not have OMIM entries. 
+
+We also test MeSH disease category enrichment, we first mapped OMIM entries to MeSH disease categories using Comparative Toxicogenomics Database’s (CTD) MEDIC disease vocabulary using Fisher's exact test comparing the proportion of genes that are classified to a particular disease category with those that are not classified to the same category
+
+PINTS::testOMIMEnrichment() and PINTS::testDiesClassEnrichment() reports the p-value of Fisher’s exact test in the following.    
+```{r, eval=TRUE }
+#Read gene-OMIM mapping records and gene-Disease categrory records
+geneOMIMPath <- system.file("extdata", "geneOMIMmap_Roadmap.txt", package="PINTS")
+geneDiesClassPath <- system.file("extdata", "gene_Diseasclass.txt", package="PINTS")
+topSubnets <- detectedNodesList
+
+#OMIM record enrichment
+geneOMIM <- read.table(geneOMIMPath, stringsAsFactors = F, head = T)
+result <- testOMIMEnrichment(geneOMIM, topSubnets[[1]])
+print(result)
+
+#gene-disease class enrichment
+geneDiseaseClass <- read.table(geneDiesClassPath, stringsAsFactors = F, head = T)
+result <- testDiesClassEnrichment(geneDiseaseClass, topSubnets[[1]])
+print(result)
+```
+
+
