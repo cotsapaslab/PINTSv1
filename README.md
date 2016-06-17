@@ -1,7 +1,13 @@
  
 #### Description of the package
 
-The PINTS (Protein Interaction Network Tissue Search) package provides a framework to identify groups of interacting genes with high user--specified scores and perform tissue--specific expression enrichment for any significant groups identified. We have (used it to demonstrate)[http://dx.doi.org/10.1371/journal.pgen.1006121 "PLoS Genetics PINTS paper"] that genes under purifying selection in the human population are clustered, suggesting selection acts on entire biological mechanisms.
+The PINTS (Protein Interaction Network Tissue Search) package provides a 
+framework to identify groups of interacting genes with high user--specified 
+scores and perform tissue--specific expression enrichment for any significant 
+groups identified. We have [used it to 
+demonstrate](http://dx.doi.org/10.1371/journal.pgen.1006121 "PLoS Genetics PINTS 
+paper") that genes under purifying selection in the human population are 
+clustered, suggesting selection acts on entire biological mechanisms.
 
 
 #### Installation
@@ -45,4 +51,7 @@ You can check out the tutorials in a R session after the installation of the pac
 
 #### Citation
 
-Please cite (JinMyung Choi et al)[http://dx.doi.org/10.1371/journal.pgen.1006121], Network Analysis of Genome-Wide Selective Constraint Reveals a Gene Network Active in Early Fetal Brain Intolerant of Mutation, PLoS Genetics 12(6):e1006121 2016.
+Please cite [JinMyung Choi et 
+al](http://dx.doi.org/10.1371/journal.pgen.1006121), Network Analysis of 
+Genome-Wide Selective Constraint Reveals a Gene Network Active in Early Fetal 
+Brain Intolerant of Mutation, PLoS Genetics 12(6):e1006121 2016.
