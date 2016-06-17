@@ -1,11 +1,7 @@
  
 #### Description of the package
 
-The PINTS (Protein Interaction Network Tissue Search) package is designed to provide a framework to identify a group of 
-interacting genes under mutational constraint and equivalently, a group of interacting genes associated with diseases/traits 
-(e.g., trait-associated subnetwork from genome wide association study) and to infer the biological context represented by the
-group of genes, e.g., likely tissue of action. These can help to gain an insight about the molecular mechanism associated with 
-mutational constraint and complex diseases/traits. 
+The PINTS (Protein Interaction Network Tissue Search) package provides a framework to identify groups of interacting genes with high user--specified scores and perform tissue--specific expression enrichment for any significant groups identified. We have (used it to demonstrate)[http://dx.doi.org/10.1371/journal.pgen.1006121 "PLoS Genetics PINTS paper"] that genes under purifying selection in the human population are clustered, suggesting selection acts on entire biological mechanisms.
 
 
 #### Installation
@@ -47,7 +43,6 @@ You can check out the tutorials in a R session after the installation of the pac
         browseVignettes("PINTS")
 
 
-#### Acknowledgement
+#### Citation
 
-We thank all the members of Cotsapas Lab for the develpoment of the project and also thank the whole research community for 
-making the useful datasets and tools available. 
+Please cite (JinMyung Choi et al)[http://dx.doi.org/10.1371/journal.pgen.1006121], Network Analysis of Genome-Wide Selective Constraint Reveals a Gene Network Active in Early Fetal Brain Intolerant of Mutation, PLoS Genetics 12(6):e1006121 2016.
