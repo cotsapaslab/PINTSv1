@@ -15,7 +15,7 @@ You can install the PINTS package from github.
         install.packages('devtools')
         library(devtools)
         
-        install_github("PINTS", username="PINTS-CotsapasLab")
+        install_github("CotsapasLab/PINTSv1")
         library(PINTS)
 
 In addition to this, you would need to install all package dependencies. They are downloadble frm CRAN 
